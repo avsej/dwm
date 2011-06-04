@@ -3,7 +3,7 @@
 
 include config.mk
 
-SRC = dwm.c
+SRC = dwm.c draw.c
 OBJ = ${SRC:.c=.o}
 
 all: options dwm
