@@ -43,7 +43,7 @@
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
-#define CLEANMASK(mask)         ((mask) & ~(numlockmask|LockMask))
+#define CLEANMASK(mask)         ((mask) & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
 #define INRECT(X,Y,RX,RY,RW,RH) ((X) >= (RX) && (X) < (RX) + (RW) && (Y) >= (RY) && (Y) < (RY) + (RH))
 #define ISVISIBLE(C)            (((C)->tags & (C)->mon->tagset[(C)->mon->seltags]))
 #define LENGTH(X)               (sizeof (X) / sizeof *(X))
@@ -422,7 +422,7 @@ buttonpress(XEvent *e) {
 		}
 		else if(ev->x < x + blw)
 			click = ClkLtSymbol;
-		else if(ev->x > selmon->wx + selmon->ww - textw(dc, stext))
+		else if(ev->x > selmon->ww - textw(dc, stext))
 			click = ClkStatusText;
 		else
 			click = ClkWinTitle;
@@ -504,7 +504,7 @@ clientmessage(XEvent *e) {
 	if(!c)
 		return;
 	if(cme->message_type == netatom[NetWMState] && cme->data.l[1] == netatom[NetWMFullscreen]) {
-		if(cme->data.l[0]) {
+		if(cme->data.l[0] && !c->isfullscreen) {
 			XChangeProperty(dpy, cme->window, netatom[NetWMState], XA_ATOM, 32,
 			                PropModeReplace, (unsigned char*)&netatom[NetWMFullscreen], 1);
 			c->isfullscreen = True;
@@ -560,11 +560,13 @@ void
 configurenotify(XEvent *e) {
 	Monitor *m;
 	XConfigureEvent *ev = &e->xconfigure;
+	Bool dirty;
 
 	if(ev->window == root) {
+		dirty = (sw != ev->width);
 		sw = ev->width;
 		sh = ev->height;
-		if(updategeom()) {
+		if(updategeom() || dirty) {
 			resizedc(dc, sw, bh);
 			updatebars();
 			for(m = mons; m; m = m->next)
@@ -746,16 +748,21 @@ drawbars(void) {
 
 void
 enternotify(XEvent *e) {
+	Client *c;
 	Monitor *m;
 	XCrossingEvent *ev = &e->xcrossing;
 
 	if((ev->mode != NotifyNormal || ev->detail == NotifyInferior) && ev->window != root)
 		return;
-	if((m = wintomon(ev->window)) && m != selmon) {
+	c = wintoclient(ev->window);
+	m = c ? c->mon : wintomon(ev->window);
+	if(m != selmon) {
 		unfocus(selmon->sel, True);
 		selmon = m;
 	}
-	focus((wintoclient(ev->window)));
+	else if(!c || c == selmon->sel)
+		return;
+	focus(c);
 }
 
 void
@@ -989,8 +996,8 @@ manage(Window w, XWindowAttributes *wa) {
 		applyrules(c);
 	}
 	/* geometry */
-	c->x = c->oldx = wa->x + c->mon->wx;
-	c->y = c->oldy = wa->y + c->mon->wy;
+	c->x = c->oldx = wa->x;
+	c->y = c->oldy = wa->y;
 	c->w = c->oldw = wa->width;
 	c->h = c->oldh = wa->height;
 	c->oldbw = wa->border_width;
@@ -1283,6 +1290,7 @@ void
 run(void) {
 	XEvent ev;
 	/* main event loop */
+	XSync(dpy, False);
 	while(running && !XNextEvent(dpy, &ev)) {
 		if(handler[ev.type])
 			handler[ev.type](&ev); /* call handler */
@@ -1902,7 +1910,6 @@ zoom(const Arg *arg) {
 	Client *c = selmon->sel;
 
 	if(!selmon->lt[selmon->sellt]->arrange
-	|| selmon->lt[selmon->sellt]->arrange == monocle
 	|| (selmon->sel && selmon->sel->isfloating))
 		return;
 	if(c == nexttiled(selmon->clients))
@@ -1914,7 +1921,7 @@ zoom(const Arg *arg) {
 int
 main(int argc, char *argv[]) {
 	if(argc == 2 && !strcmp("-v", argv[1])) {
-		fputs("dwm-"VERSION", © 2006-2011 dwm engineers, see LICENSE for details\n", stdout);
+		puts("dwm-"VERSION", © 2006-2011 dwm engineers, see LICENSE for details");
 		exit(EXIT_SUCCESS);
 	}
 	else if(argc != 1)
