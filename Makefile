@@ -10,6 +10,8 @@ all: options dwm
 
 options:
 	@echo dwm build options:
+	@echo "DESTDIR  = ${DESTDIR}"
+	@echo "PREFIX   = ${PREFIX}"
 	@echo "CFLAGS   = ${CFLAGS}"
 	@echo "LDFLAGS  = ${LDFLAGS}"
 	@echo "CC       = ${CC}"
